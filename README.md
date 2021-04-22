@@ -1,10 +1,6 @@
 # Intro
 
-This repository contains the codes to run the nuclei segmentation pipeline of the BIOMAG group inspired by Kaggle's Data Science Bowl 2018 competition
-
-Some resulting masks obtained by our method:
-
-![picture](example_results.png)
+This repository contains the code to train and run bone marrow smears classification models used in  diagnosis of Acute Promyelocytic Leukemia from Bone Marrow Smears 
 
 # Prerequisites
 

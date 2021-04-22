@@ -1,3 +1,3 @@
-[submodule "bone-marrow-slide-classification"]
-	path = bone-marrow-slide-classification
-	url = https://github.com/TimSchmittmann/bone-marrow-slide-classification
+[submodule "bone_marrow_smear_classification"]
+	path = bone_marrow_smear_classification
+	url = git@github.com:TimSchmittmann/bone_marrow_smear_classification.git
