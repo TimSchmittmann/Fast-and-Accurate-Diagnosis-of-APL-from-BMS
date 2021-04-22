@@ -1,9 +1,3 @@
-[submodule "tf-explain"]
-	path = tf-explain
-	url = git@github.com:TimSchmittmann/tf-explain.git
-[submodule "automated-training-labeltool"]
-	path = automated-training-labeltool
-	url = git@github.com:SebastianRiechert/automated-training-labeltool.git
 [submodule "bone-marrow-slide-classification"]
 	path = bone-marrow-slide-classification
 	url = https://github.com/TimSchmittmann/bone-marrow-slide-classification
