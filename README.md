@@ -1,160 +1,134 @@
+
+- [Intro](#intro)
+- [Prerequisites](#prerequisites)
+	- [System requirements](#system-requirements)
+		- [Hardware requirements](#hardware-requirements)
+		- [OS requirements](#os-requirements)
+		- [Software requirements](#software-requirements)
+	- [Data](#data)
+	- [Basic setup:](#basic-setup)
+- [Single models](#single-models)
+	- [Hyperparameter optimizing training](#hyperparameter-optimizing-training)
+	- [Finetuning](#finetuning)
+- [Ensemble models](#ensemble-models)
+	- [Required single models](#required-single-models)
+	- [Setting the best runs](#setting-the-best-runs)
+	- [Pre generating the csv splits](#pre-generating-the-csv-splits)
+	- [Hyperparameter optimizing training](#hyperparameter-optimizing-training-1)
+	- [Visualization](#visualization)
+
 # Intro
 
 This repository contains the code to train and run bone marrow smears classification models used in  diagnosis of Acute Promyelocytic Leukemia from Bone Marrow Smears 
 
 # Prerequisites
 
-Please see requirements.txt that can also be run as a bash script (Linux) or alternatively, you can copy the install commands to console corresponding to your system (command prompt (Windows) / terminal (Linux)) and execute them.
+## System requirements
 
-- Install CUDA 9.0 and CuDNN 7.0 as well as MATLAB* (Release 2017a or later) appropriate for your system. Currently, Linux and Windows implementation is provided.
+The code has been developed and tested mainly on nodes using the IBM-Power9 CPU architecture (ppc64le) with NVIDIA Tesla V100 GPUs provided by the centre for information services and high performance computing (ZIH) TU Dresden. Using similar hardware is recommended for performance and reproducability.
 
-	\*: MATLAB is not required for [fast prediction](#fast-prediction).
+### Hardware requirements
 
-- MATLAB* toolboxes used by the repository are:
-	- Image Processing Toolbox
-	- Parallel Computing Toolbox
-	- Statistics and Machine Learning Toolbox
-	- Curve Fitting Toolbox
-	- Global Optimization Toolbox
-	- Optimization Toolbox
-- See requirements.txt for python packages to install.
-- Download Matterport's Mask R-CNN github repository or clone directly with git and revert to the commit our method uses:
+- 1 GPU with at least 8 GB RAM 
+- 200 GB disk space
+- 64 GB RAM
 
-```
-	git clone https://github.com/matterport/Mask_RCNN.git
-	git checkout 53afbae5c5159b5a10ecd024a72b883a2b058314
-```
+Hardware requirements are based on [our dataset](#data) and the complete training pipeline. Actual usage heavily depends on the number, cell count, file size and dimension of bone marrow smear images used in training. 
 
-- You will need to set the path of your cloned Mask R-CNN folder in the scripts below
-- See documentation in .pdf on how to use functionalities of our pipeline
+### OS requirements
+
+- OS: Red Hat Enterprise Linux
+- Kernel: Linux 4.14.0-115.19.1.el7a.ppc64le
+- Architecture: ppc64-le
+
+### Software requirements
+- Conda package manager version 4.7.12
+- CUDA 10.2.89
+- A server running optuna 2.4.0 and mlflow 1.12.1 (Alternativly install it locally via [optional dependencies](https://github.com/TimSchmittmann/Fast-and-Accurate-Diagnosis-of-APL-from-BMS))
+- All python dependencies with versions are listed in `conda.environment.yml.example`
 
 ## Data
 
-Our method expects images to be 8-bit 3 channels RGB images in .png format. See [our script](#preprocess-test-images) to convert your images.
+You can download the dataset [from kaggle](https://www.kaggle.com/dataset/a49eb5eb219384adf92856e43dcfc79b9cf1eaea5ec13bd57ef304d173ebe42c). Then unzip it in the root directory of the repository.
 
+If you want to use your own data, you'll need to match the file and csv structure provided in the kaggle dataset. 
 
-# Prediction
+## Basic setup:
 
-Download our pre-trained models from [our google drive](https://drive.google.com/open?id=1lVJtS41vzMkIsCa3-i14mSmLBbaKazsq)
+Clone the repository together with it's submodules:
 
-- Make sure you have *mask_rcnn_coco.h5*, *mask_rcnn_presegmentation.h5* and *mask_rcnn_final.h5* in the folder \kaggle_workflow\maskrcnn\model\
-- Make sure you have *UNet_sigma0.0_1\UNet_sigma0.0_1* and the other U-Net models in the folder \kaggle_workflow\unet\
+```
+git clone --recurse-submodules git@github.com:TimSchmittmann/Fast-and-Accurate-Diagnosis-of-APL-from-BMS.git
+```
 
-You can choose either full prediction with post-processing or fast prediction; the former takes longer to complete and requires more VRAM.
+Copy environment file to not put your hardware specific setup into version control:
 
+```
+cp conda.environment.yml.example environment.yml
+```
 
-## **Full prediction pipeline with post-processing**
+(optional) Adjust environment.yml to your specific requirements. Current environment.yml will only work on ppc64le architecture. 
 
-Predicts nuclei first with a presegmenter Mask R-CNN model, estimates cell sizes, predicts with multiple U-Net models and ensembles the results, then uses all of the above in a final post-processing step to refine the contours.
-To predict nuclei on images please edit either
+Then create and activate the environment:
 
-- `start_prediction_full.bat` (Windows) or 
-- `start_prediction_full.sh` (Linux)
+```
+conda env create
+conda activate <the_environment>
+```
 
-and specify the following 3 directories with their corresponding full paths on your system:
+Setup should take no longer than 60 minutes, otherwise you might need to configure the environment.yml with the correct channels for your system. In case of HTTP 500 error for the IBM repository, simply retry until the request is sucessful. 
 
-- Mask R-CNN
-- root_dir
-- images_dir
+# Single models
 
-Note: [pre-processing scripts](#preprocess-test-images) are provided to convert your test images.
-See further details in the documentation.
+Our framework can be used to train individual models on many different binary classification tasks like Auer rod classification on cell images and APL-Healthy classification on whole BMS images with fully automated hyperparameter optimization. These individual models can then be combined into ensemble models, to improve results even further. To build a strong baseline, it is advised to get familar with the single models first, before trying to construct an ensemble model.
 
-## **Fast prediction**
+## Hyperparameter optimizing training
+We use [automatically registered configuration plugins](https://github.com/TimSchmittmann/bone_marrow_smear_classification/tree/15a946a69e2ffd842358bc38419364a36eea8c72/bms_classification/config/auto_registered/) to configure the automatic training of DL models for individual tasks. You need to create new configs or adjust the existings ones accordingly depending on the task you want to run. For the demo, copy the common_configs.py.example and configure the TrackingConfig depending on your optuna and mlflow setup:
 
-Predicts nuclei with a presegmenter Mask R-CNN model that generalizes and performs well in varying image types. Produces fast results that can be improved with the post-processing option above.
-To predict fast:
-Please follow the steps of "PREDICTION WITH POST-PROCESSING" section for either of the files:
+```
+cp bone_marrow_smear_classification/bms_classification/config/auto_registered/common_config.py.example bone_marrow_smear_classification/bms_classification/config/auto_registered/common_config.py 
+```
 
-- `start_prediction_fast.bat` (Windows) or 
-- `start_prediction_fast.sh` (Linux)
+This should be enough to run automatically train the demo model on auer rod cells using the "DemoAuerRodCellClassification" configuration. Additionally the PYTHONHASHSEED should be set to 0, to improve caching:
 
-See further details in the documentation.
+```
+PYTHONHASHSEED=0 DISABLE_GPU=False python bone_marrow_smear_classification/bms_classification/model_training/single_model_classification.py --config=DemoAuerRodCellClassification
+```
 
+After initial augmentation and creation of bottleneck features, one run should take no longer than 10 minutes.
 
-# Custom validation
+## Finetuning
 
-To use your custom folder of images as validation please run the following script according to your operating system:
+After enough runs, you should compare the individual runs on mlflow. It's not recommended to blindly take the best run, as validation loss may oscillate and we should generally prefer simpler models over more complex configurations. Next set the mlflow RUN_ID in the DemoAuerRodCellClassificationFinetuning configuration found in the auer_rod_cell_classification.py file. You may set `LOG_IMAGES` and `LOG_MODELS` to True for finetuning, if you want to create the metrics plots.
 
-- `runGenerateValidationCustom.bat` (Windows)
-- `runGenerateValidationCustom.sh` (Linux)
+# Ensemble models
 
-See further details in the documentation.
+## Required single models
 
+Creating an ensemble model, requires information about the best hyperparameter configuration for each individual model. Therefore it is required to run the [Hyperparameter optimizing training](#hyperparameter-optimizing-training) configuration for every single model in the ensemble. 
 
-# Training
+## Setting the best runs
 
-Obtain our pre-trained classifier *pretrainedDistanceLearner.mat* for training by either:
-- Downloading it from [our google drive](https://drive.google.com/drive/folders/1RC4Iy3qkfU1cF6bZFx3JOXvzqsvyT3J4?usp=sharing). Make sure you have *pretrainedDistanceLearner.mat* in the folder \kaggle_workflow\inputs\clustering\
+Next the best mlflow runs need to be selected for each single model and set in the auto-registered configuration for the current ensemble. The demo shows the configuration for the APL-healthy classification ensemble and the APL-AML classification ensemble.
 
-	***or***
+## Pre generating the csv splits
 
-- Installing Git LFS (Large File Storage) by following the instructions on [their installation guide](https://github.com/git-lfs/git-lfs/wiki/Installation) or [their github page](https://git-lfs.github.com/) according to your operating system. Make sure you set it up after installation:
+Because we must prevent info leaking from train to validation set, we need to pre-split our data into individual cross-validation sets. For the demo, this can be done automatically using
 
-	```
-		git lfs install
-	```
+```
+python bone_marrow_smear_classification/bms_classification/preparation/ensemble_cv_splits.py
+```
 
-WARNING: it is possible to overwrite our provided trained models in this step. See documentation for details.
+For your own data, you should adjust the settings in this python file accordingly.
 
-We include a .mat file with the validation image names we used for the Kaggle DSB2018 competition. If you would like to use your own images for this pupose, see [**Custom validation**](#custom-validation) above.
+## Hyperparameter optimizing training
 
-WARNING: training will override the U-Net models we provide, we advise you make a copy of them first from the following relative path:
-\kaggle_workflow\unet\
+Finally the hyperparameter-optimizing training can be started by utilizing the auto-registered configurations just like with the single models:
 
-To train on your own images please run the following script according to your operating system:
+```
+PYTHONHASHSEED=0 DISABLE_GPU=False python bone_marrow_smear_classification/bms_classification/model_training/ensemble_model_classification.py --config=DemoAplHealthyEnsembleClassification
+```
 
-- `start_training.bat` (Windows)
-- `start_training.sh` (Linux)
+## Visualization
 
-NOTE: for Windows you need to edit start_training.bat and set your python virtual environment path as indicated prior to running the script. It will open a second command prompt for necessary server running of pix2pix and must remain open until all pix2pix code execution is finished - which is indicated by the message "STYLE TRANSFER DONE:" in command prompt.
-
-See further details in the documentation.
-
-
-# Parameter search for post-processing
-
-A generally optimal set of parameters are provided in the scripts as default. However, you can run our parameter optimizer to best fit to your image set.
-
-To find the most optimal parameters please run the following script according to your operating system:
-
-- `start_parameterSearch.bat` (Windows)
-- `start_parameterSearch.sh` (Linux)
-
-and see the found parameters in the text file \kaggle_workflow\outputsValidation\paramsearch\paramsearchresult.txt
-
-See further details in the documentation.
-
-
-# Prepare style transfer input for single experiment
-
-To prepare style transfer on your own images coming from **the same experiment** please run the following script according to your operating system:
-
-- `start_singleExperimentPreparation.bat` (Windows)
-- `start_singleExperimentPreparation.sh` (Linux)
-
-After this you are ought to run *these* training scripts instead of the ones above:
-
-- `start_training_singleExperiment.bat` (Windows)
-- `start_training_singleExperiment.sh` (Linux)
-
-as these scripts would use the single experiment data for style transfer learning.
-
-WARNING: If you do not provide your own mask folder for this step the default option will be \kaggle_workflow\outputs\presegment which is created by the fast segmentation step of our pipeline. Please run it prior to this step to avoid 'file not found' errors.
-
-NOTE: This option should only be used if **all your images come from the same experiment**. If you provide mixed data, subsequent style transfer learning will result in flawed models and failed synthetic images.
-
-
-# Preprocess test images
-
-If your test images are 16-bit you may want to convert them to 8-bit 3 channel images with either
-
-- `start_image_preprocessing.bat` (Windows)
-- `start_image_preprocessing.sh` (Linux)
-
-
-# Citation
-
-Please cite our paper if you use our method:
-
-Reka Hollandi, Abel Szkalisity, Timea Toth, Ervin Tasnadi, Csaba Molnar, Botond Mathe, Istvan Grexa, Jozsef Molnar, Arpad Balind, Mate Gorbe, Maria Kovacs, Ede Migh, Allen Goodman, Tamas Balassa, Krisztian Koos, Wenyu Wang, Juan Carlos Caicedo, Norbert Bara, Ferenc Kovacs, Lassi Paavolainen, Tivadar Danka, Andras Kriston, Anne Elizabeth Carpenter, Kevin Smith, Peter Horvath (2020): “**nucleAIzer: a parameter-free deep learning framework for nucleus segmentation using image style transfer**”, *Cell Systems*, Volume 10, Issue 5, 20 May 2020, Pages 453-458.e6
+Contrary to the single models there is no finetuning required for the ensemble models, so visualization can be toggled any time using the `LOG_IMAGES` parameter of the CommonTrackingConfiguration. However, to speed up the training it is recommended to leave it turned off and later use the `BEST_TRIAL` setting, to rerun the best trial after enough successful training runs.
