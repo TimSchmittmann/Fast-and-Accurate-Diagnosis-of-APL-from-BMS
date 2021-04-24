@@ -19,7 +19,7 @@
 
 # Intro
 
-This repository contains the code to train and run bone marrow smears classification models used in  diagnosis of Acute Promyelocytic Leukemia from Bone Marrow Smears 
+This repository contains the code to train and run bone marrow smears classification models used in  diagnosis of acute promyelocytic leukemia (APL) from bone marrow smears (BMS). 
 
 # Prerequisites
 
